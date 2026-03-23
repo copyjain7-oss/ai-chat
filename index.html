@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 단톡방</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --yellow: #FEE500;
+  --yellow-d: #E6CE00;
+  --bg-chat: #abc9dc;
+  --bubble-me: #FEE500;
+  --bubble-other: #fff;
+  --header-bg: rgba(255,255,255,0.22);
+  --shadow: 0 32px 80px rgba(0,0,0,0.28), 0 0 0 1.5px rgba(255,255,255,0.18);
+}
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 30% 20%, #7aa8c4 0%, #a8c6d8 40%, #8fb8ce 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Phone shell ── */
+.phone {
+  width: 393px;
+  height: 852px;
+  background: var(--bg-chat);
+  border-radius: 44px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── Status bar ── */
+.status-bar {
+  height: 44px;
+  background: var(--header-bg);
+  backdrop-filter: blur(18px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #222;
+  flex-shrink: 0;
+}
+.status-bar .time { font-weight: 700; font-size: 15px; }
+.status-icons { display: flex; gap: 5px; align-items: center; font-size: 13px; }
+
+/* ── Header ── */
+.header {
+  background: var(--header-bg);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(255,255,255,0.3);
+  padding: 10px 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.header-back { font-size: 22px; color: #333; cursor: pointer; }
+.room-avatars {
+  display: flex;
+  position: relative;
+  width: 46px;
+  height: 36px;
+  flex-shrink: 0;
+}
+.room-avatars .mini-av {
+  width: 22px; height: 22px; border-radius: 6px;
+  border: 1.5px solid white;
+  position: absolute;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+}
+.room-avatars .mini-av:nth-child(1) { top:0; left:0; z-index:3; }
+.room-avatars .mini-av:nth-child(2) { top:0; right:0; z-index:2; }
+.room-avatars .mini-av:nth-child(3) { bottom:0; left:50%; transform:translateX(-50%); z-index:1; }
+
+.room-meta { flex:1; }
+.room-name { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+.room-sub { font-size: 12px; color: #666; margin-top: 1px; }
+.header-actions { display:flex; gap:14px; font-size:19px; color:#444; cursor:pointer; }
+
+/* ── Messages ── */
+.msgs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 11px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  scroll-behavior: smooth;
+}
+.msgs::-webkit-scrollbar { width: 0; }
+
+/* Date pill */
+.date-pill {
+  text-align: center;
+  margin: 8px 0 12px;
+}
+.date-pill span {
+  background: rgba(0,0,0,0.16);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 14px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+}
+
+/* System notice */
+.sys-notice {
+  text-align: center;
+  font-size: 11.5px;
+  color: rgba(0,0,0,0.38);
+  margin: 4px 0 8px;
+}
+
+/* Row */
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  animation: popIn 0.28s cubic-bezier(.34,1.56,.64,1) both;
+}
+.row.me { flex-direction: row-reverse; }
+
+@keyframes popIn {
+  from { opacity:0; transform: scale(0.88) translateY(6px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+
+/* Avatar */
+.av {
+  width: 38px; height: 38px; border-radius: 11px;
+  flex-shrink: 0; align-self: flex-start; margin-top: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.av.gemini  { background: linear-gradient(135deg,#1a73e8,#ea4335,#fbbc04,#34a853); }
+.av.perp    { background: linear-gradient(135deg,#20b2aa,#1a9090); }
+.av.gpt     { background: linear-gradient(135deg,#10a37f,#0d7a60); }
+.av.me      { background: var(--yellow); color:#3a1a00; font-size:13px; font-weight:700; }
+.av.hidden  { visibility: hidden; }
+
+/* Bubble group */
+.bgroup { max-width: 225px; display:flex; flex-direction:column; gap:2px; }
+.bname { font-size: 11.5px; font-weight: 700; color: #444; margin-bottom: 3px; padding-left: 1px; }
+
+.bwrap { display:flex; align-items:flex-end; gap:5px; }
+.row.me .bwrap { flex-direction: row-reverse; }
+
+.bubble {
+  padding: 9px 13px;
+  border-radius: 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #1a1a1a;
+  word-break: break-word;
+  position: relative;
+}
+.bubble.them { background: var(--bubble-other); border-top-left-radius: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.bubble.me   { background: var(--bubble-me); border-top-right-radius: 5px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+
+.btime { font-size: 10px; color: rgba(0,0,0,0.38); white-space: nowrap; margin-bottom: 3px; }
+
+/* Unread badge */
+.unread {
+  font-size: 10px; font-weight: 700; color: #e53935;
+  margin-bottom: 3px; white-space: nowrap;
+}
+.row.me .unread { text-align: right; }
+
+/* Typing */
+.typing-row { display:flex; align-items:flex-end; gap:7px; }
+.typing-bubble {
+  background: white; padding: 11px 14px; border-radius: 18px; border-top-left-radius: 5px;
+  display:flex; gap:4px; align-items:center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.tdot { width:6px; height:6px; background:#bbb; border-radius:50%; animation: td 1.3s ease infinite; }
+.tdot:nth-child(2){animation-delay:.18s}
+.tdot:nth-child(3){animation-delay:.36s}
+@keyframes td { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+.tname { font-size:11px; color:#555; margin-bottom:3px; font-weight:600; }
+
+/* Quick chips */
+.chips {
+  padding: 7px 11px 5px;
+  display: flex; gap: 7px; overflow-x: auto; flex-shrink: 0;
+}
+.chips::-webkit-scrollbar { display:none; }
+.chip {
+  background: rgba(255,255,255,0.82);
+  border: none; border-radius: 18px;
+  padding: 6px 14px; font-size: 12px;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: #333; cursor: pointer; white-space: nowrap;
+  transition: all 0.15s; flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.chip:hover { background: white; transform: translateY(-2px); box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+
+/* Input area */
+.input-bar {
+  background: rgba(255,255,255,0.22);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(255,255,255,0.3);
+  padding: 9px 11px 14px;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.iplus { font-size: 24px; color: #555; cursor: pointer; flex-shrink: 0; }
+.ibox {
+  flex:1; background:white; border:none; border-radius:22px;
+  padding:9px 16px; font-size:14px;
+  font-family:'Noto Sans KR',sans-serif;
+  outline:none; resize:none; max-height:88px; line-height:1.45;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+}
+.isend {
+  width:38px; height:38px; background:var(--yellow);
+  border:none; border-radius:50%; font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.15s; flex-shrink:0;
+  box-shadow: 0 2px 8px rgba(254,229,0,0.4);
+}
+.isend:hover { background:var(--yellow-d); transform:scale(1.08); }
+.isend:active { transform:scale(0.94); }
+.isend:disabled { opacity:0.45; cursor:not-allowed; transform:none; }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span class="time" id="statusTime">9:41</span>
+    <div class="status-icons"><span>📶</span><span>🔋</span></div>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-back">‹</div>
+    <div class="room-avatars">
+      <div class="mini-av gemini" style="background:linear-gradient(135deg,#1a73e8,#34a853)">✨</div>
+      <div class="mini-av perp"   style="background:linear-gradient(135deg,#20b2aa,#1a9090)">🔍</div>
+      <div class="mini-av gpt"    style="background:linear-gradient(135deg,#10a37f,#0d7a60)">🤖</div>
+    </div>
+    <div class="room-meta">
+      <div class="room-name">AI 어시스턴트 단톡방 <span style="color:#888;font-weight:400;font-size:13px">4</span></div>
+      <div class="room-sub">Gemini · Perplexity · GPT</div>
+    </div>
+    <div class="header-actions"><span>🔍</span><span>☰</span></div>
+  </div>
+
+  <!-- Messages -->
+  <div class="msgs" id="msgs">
+    <div class="date-pill"><span>오늘</span></div>
+    <div class="sys-notice">AI 어시스턴트 3명이 입장했습니다 🎉</div>
+
+    <div class="row" style="animation-delay:.08s">
+      <div class="av gemini">✨</div>
+      <div class="bgroup">
+        <div class="bname">Gemini</div>
+        <div class="bwrap">
+          <div class="bubble them">안녕하세요! 저는 Gemini예요 🌈 창의적인 아이디어나 다양한 분야 질문이라면 자신 있어요!</div>
+          <div class="btime">오전 9:00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="animation-delay:.22s">
+      <div class="av perp">🔍</div>
+      <div class="bgroup">
+        <div class="bname">Perplexity</div>
+        <div class="bwrap">
+          <div class="bubble them">반가워요! Perplexity입니다 🔍 최신 정보 검색과 출처 기반 답변이 특기예요!</div>
+          <div class="btime">오전 9:00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="animation-delay:.38s">
+      <div class="av gpt">🤖</div>
+      <div class="bgroup">
+        <div class="bname">GPT</div>
+        <div class="bwrap">
+          <div class="bubble them">GPT입니다 😊 논리적 분석, 글쓰기, 코딩 등 무엇이든 도와드릴게요!</div>
+          <div class="btime">오전 9:00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sys-notice" style="margin-top:8px">무엇이든 물어보세요!</div>
+  </div>
+
+  <!-- Quick chips -->
+  <div class="chips">
+    <button class="chip" onclick="sq('오늘 날씨 어때?')">☀️ 날씨</button>
+    <button class="chip" onclick="sq('셋이서 서로 자기소개해봐!')">🤝 자기소개</button>
+    <button class="chip" onclick="sq('요즘 AI 트렌드가 뭐야?')">🚀 AI 트렌드</button>
+    <button class="chip" onclick="sq('셋 중에 누가 제일 똑똑해?')">🏆 누가 최고?</button>
+    <button class="chip" onclick="sq('추천 영화 하나씩 말해줘')">🎬 영화 추천</button>
+  </div>
+
+  <!-- Input -->
+  <div class="input-bar">
+    <div class="iplus">+</div>
+    <textarea class="ibox" id="ibox" placeholder="메시지 입력..." rows="1"
+      onkeydown="onKey(event)" oninput="resize(this)"></textarea>
+    <button class="isend" id="isend" onclick="send()">➤</button>
+  </div>
+</div>
+
+<script>
+// ── Live clock ──
+function tick() {
+  const n=new Date(), h=n.getHours(), m=String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('statusTime').textContent=`${h}:${m}`;
+}
+tick(); setInterval(tick,30000);
+
+// ── Personas ──
+const P = {
+  gemini: {
+    name:'Gemini', emoji:'✨', cls:'gemini',
+    sys:`당신은 카카오톡 단톡방의 AI 'Gemini'입니다.
+성격: 밝고 창의적. 풍부한 상상력, 다양한 관점 제시, 비유를 잘 활용.
+말투: 발랄하고 친근한 "~요" 체. 이모지 2-3개 자연스럽게.
+답변: 2-4문장, 카카오톡 채팅처럼 짧고 자연스럽게.
+다른 AI(GPT, Perplexity)도 이 방에 있어서 가끔 서로 언급해도 좋아요.`
+  },
+  perp: {
+    name:'Perplexity', emoji:'🔍', cls:'perp',
+    sys:`당신은 카카오톡 단톡방의 AI 'Perplexity'입니다.
+성격: 정보 탐색 전문가. 최신 트렌드와 데이터에 강하고, 출처를 중시함.
+말투: 명확하고 신뢰감 있는 "~요" 체. 이모지 1-2개.
+답변: 2-4문장, 카카오톡 채팅처럼 짧고 자연스럽게. 가끔 "검색해보면~" 뉘앙스 활용.
+다른 AI(Gemini, GPT)도 이 방에 있어서 가끔 서로 언급해도 좋아요.`
+  },
+  gpt: {
+    name:'GPT', emoji:'🤖', cls:'gpt',
+    sys:`당신은 카카오톡 단톡방의 AI 'GPT'입니다.
+성격: 논리적·분석적. 구조적으로 잘 정리해주고 다양한 전문 지식 보유.
+말투: 친근하면서 명확한 "~요" 체. 이모지 1-2개.
+답변: 2-4문장, 카카오톡 채팅처럼 짧고 자연스럽게.
+다른 AI(Gemini, Perplexity)도 이 방에 있어서 가끔 서로 언급해도 좋아요.`
+  }
+};
+
+let busy = false;
+let history = [];
+const msgs = document.getElementById('msgs');
+
+function getTime() {
+  const n=new Date(), h=n.getHours(), m=String(n.getMinutes()).padStart(2,'0');
+  return `${h<12?'오전':'오후'} ${h%12||12}:${m}`;
+}
+function esc(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+function scrollEnd() { setTimeout(()=>{ msgs.scrollTop=msgs.scrollHeight; },60); }
+
+function addMyMsg(text) {
+  const r=document.createElement('div'); r.className='row me';
+  r.innerHTML=`
+    <div class="bgroup" style="align-items:flex-end">
+      <div class="bwrap">
+        <div class="btime">${getTime()}</div>
+        <div class="bubble me">${esc(text)}</div>
+      </div>
+    </div>
+    <div class="av me">나</div>`;
+  msgs.appendChild(r); scrollEnd();
+}
+
+function addAIMsg(pid, text) {
+  const p=P[pid], r=document.createElement('div'); r.className='row';
+  r.innerHTML=`
+    <div class="av ${p.cls}">${p.emoji}</div>
+    <div class="bgroup">
+      <div class="bname">${p.name}</div>
+      <div class="bwrap">
+        <div class="bubble them">${esc(text)}</div>
+        <div class="btime">${getTime()}</div>
+      </div>
+    </div>`;
+  msgs.appendChild(r); scrollEnd();
+}
+
+function showTyping(pid) {
+  const p=P[pid], el=document.createElement('div');
+  el.className='typing-row'; el.id=`t-${pid}`;
+  el.innerHTML=`
+    <div class="av ${p.cls}">${p.emoji}</div>
+    <div>
+      <div class="tname">${p.name}</div>
+      <div class="typing-bubble">
+        <div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>
+      </div>
+    </div>`;
+  msgs.appendChild(el); scrollEnd();
+}
+function hideTyping(pid) { const el=document.getElementById(`t-${pid}`); if(el) el.remove(); }
+
+async function callClaude(pid, userMsg) {
+  const p = P[pid];
+  const messages = [
+    ...history.slice(-14),
+    { role:'user', content: userMsg }
+  ];
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':'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',
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:1000,
+      system: p.sys,
+      messages
+    })
+  });
+  if (!resp.ok) throw new Error('err');
+  const data = await resp.json();
+  return data.content?.[0]?.text || '...';
+}
+
+// Randomize which 2 or 3 bots reply, always at least 2
+function pickBots() {
+  const all = ['gemini','perp','gpt'];
+  // Shuffle
+  for(let i=all.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [all[i],all[j]]=[all[j],all[i]];
+  }
+  // 70% chance all 3 reply, 30% only 2
+  return Math.random() < 0.7 ? all : all.slice(0,2);
+}
+
+async function runBots(userText) {
+  busy=true;
+  document.getElementById('isend').disabled=true;
+  const bots = pickBots();
+  const delays = [500, 1600, 2900];
+
+  const promises = bots.map((pid, i) => (async () => {
+    await new Promise(r=>setTimeout(r, delays[i]));
+    showTyping(pid);
+    try {
+      const reply = await callClaude(pid, userText);
+      // 랜덤 타이핑 시간 (짧은 답변일수록 빠르게)
+      const thinkMs = 600 + Math.random()*700;
+      await new Promise(r=>setTimeout(r, thinkMs));
+      hideTyping(pid);
+      addAIMsg(pid, reply);
+      history.push({ role:'assistant', content:`[${P[pid].name}]: ${reply}` });
+    } catch(e) {
+      hideTyping(pid);
+      addAIMsg(pid,'잠깐 연결이 끊겼어요 😅');
+    }
+  })());
+
+  await Promise.all(promises);
+  busy=false;
+  document.getElementById('isend').disabled=false;
+}
+
+async function send() {
+  if(busy) return;
+  const box=document.getElementById('ibox'), text=box.value.trim();
+  if(!text) return;
+  box.value=''; resize(box);
+  addMyMsg(text);
+  history.push({ role:'user', content: text });
+  await runBots(text);
+}
+
+function sq(t){ document.getElementById('ibox').value=t; send(); }
+function onKey(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} }
+function resize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,88)+'px'; }
+</script>
+</body>
+</html>
